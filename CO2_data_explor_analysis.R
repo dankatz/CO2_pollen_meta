@@ -23,12 +23,15 @@ p <- p_raw %>%
                           measurement.type != "start of reproduction" ~ lnR)) #means more pollen exposure
 
 
-ggplot(p, aes(x = lnR)) + geom_histogram() + theme_bw() + facet_wrap(~measurement.type)
+ggplot(p, aes(x = lnR)) + geom_histogram() + theme_bw() + facet_wrap(~Experiment.Type)
+
 
 p %>% 
+  #filter(Experiment.Type == "FACE") %>% 
   mutate(study_obs = as.numeric(as.factor(paper.index))) %>% 
   ggplot(aes(y = study_obs, xmin = lnR - vlnR, x = lnR, xmax = lnR + vlnR,
-             col = species)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
-  geom_pointrange()  + facet_wrap(~measurement.type) + 
+             col = wind.pollinated)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
+  geom_pointrange(alpha = 0.5)  + facet_wrap(~measurement.type) + 
   geom_vline(xintercept = 0, lty = 2) + theme_bw()
 
+length(unique(p$study.name))
