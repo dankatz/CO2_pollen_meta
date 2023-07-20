@@ -20,18 +20,33 @@ p <- p_raw %>%
                 aCO2.SD^2 / (aCO2.study.n * aCO2.mean^2) 
            ) %>% 
   mutate(lnR = case_when(measurement.type == "start of reproduction" ~ lnR * -1,  #ES should be flipped for this one since an earlier start date 
-                          measurement.type != "start of reproduction" ~ lnR)) #means more pollen exposure
+                          measurement.type != "start of reproduction" ~ lnR))  #means more pollen exposure
+ # mutate(wind.pollinated = unlist(wind.pollinated))
+  
+### summary statistics ####################################
+
+#how many unique studies
+unique(p$study.name)
+unique(p$study.name[p$Experiment.Type == "FACE"])
 
 
+
+### data visualization ########################################
+names(p)
 ggplot(p, aes(x = lnR)) + geom_histogram() + theme_bw() + facet_wrap(~Experiment.Type)
-
 
 p %>% 
   #filter(Experiment.Type == "FACE") %>% 
   mutate(study_obs = as.numeric(as.factor(paper.index))) %>% 
   ggplot(aes(y = study_obs, xmin = lnR - vlnR, x = lnR, xmax = lnR + vlnR,
              col = wind.pollinated)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
-  geom_pointrange(alpha = 0.5)  + facet_wrap(~measurement.type) + 
+  geom_pointrange(alpha = 0.5)  + #facet_wrap(~measurement.type) + 
   geom_vline(xintercept = 0, lty = 2) + theme_bw()
 
 length(unique(p$study.name))
+unlist(p$wind.pollinated)
+
+p %>% 
+  group_by(paper.index) %>% 
+  summarize(yr_end_study = max(yr.start, na.rm = TRUE))
+  
