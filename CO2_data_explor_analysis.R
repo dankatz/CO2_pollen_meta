@@ -29,17 +29,23 @@ p <- p_raw %>%
 unique(p$study.name)
 unique(p$study.name[p$Experiment.Type == "FACE"])
 
-
+ p %>% 
+  filter(!is.na(lnR)) %>% 
+  filter(!is.infinite(lnR)) %>% 
+  group_by(Experiment.Type) %>% 
+  summarize(lnR_mean = mean(lnR, na.rm = T))
 
 ### data visualization ########################################
 names(p)
 ggplot(p, aes(x = lnR)) + geom_histogram() + theme_bw() + facet_wrap(~Experiment.Type)
 
 p %>% 
-  #filter(Experiment.Type == "FACE") %>% 
+  filter(Experiment.Type == "FACE") %>% 
+  
   mutate(study_obs = as.numeric(as.factor(paper.index))) %>% 
+  filter(study_obs == 2) -> test %>% 
   ggplot(aes(y = study_obs, xmin = lnR - vlnR, x = lnR, xmax = lnR + vlnR,
-             col = wind.pollinated)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
+             col = Growth.Form)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
   geom_pointrange(alpha = 0.5)  + #facet_wrap(~measurement.type) + 
   geom_vline(xintercept = 0, lty = 2) + theme_bw()
 
