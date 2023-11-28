@@ -58,7 +58,7 @@ p %>% group_by(Experiment.Type) %>%
 p %>% 
   #filter(Experiment.Type == "FACE") %>%  
   mutate(study_obs = as.numeric(as.factor(paper.index))) %>% 
-  ggplot(aes(y = study_obs, xmin = lnR - vlnR, x = lnR, xmax = lnR + vlnR,
+  ggplot(aes(y = study_obs, xmin = lnR - sdlnR, x = lnR, xmax = lnR + sdlnR,
              col = Growth.Form)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
   geom_pointrange(alpha = 0.5)  + facet_wrap(~measurement.type, scales = "free_x") + 
   geom_vline(xintercept = 0, lty = 2) + theme_bw()
@@ -85,23 +85,41 @@ p %>%
   geom_vline(xintercept = 0, lty = 2) + ggthemes::theme_few() 
 
 #pollen size
+#test <- 
 p %>% 
   filter(measurement.type == "pollen size") %>% 
   mutate(study_obs = as.numeric(as.factor(paper.index)),
          row_n = row_number(),
          study_obs_n = paste(study.name, row_n)) %>% 
-  ggplot(aes(y = study_obs_n, xmin = lnR - sdlnR, x = lnR, xmax = lnR + sdlnR)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
+  ggplot(aes(y = study_obs_n, xmin = lnR - sdlnR, x = lnR, xmax = lnR + sdlnR, col = species)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
   geom_pointrange(alpha = 0.5)  + facet_wrap(~measurement.type, scales = "free") + 
   geom_vline(xintercept = 0, lty = 2) + ggthemes::theme_few() 
 
 #reproductive tissue production
 p %>% 
-  filter(measurement.type == "amount of reproductive tissue") %>% 
+  #filter(measurement.type == "amount of reproductive tissue") %>% 
   mutate(study_obs = as.numeric(as.factor(paper.index)),
          row_n = row_number(),
          study_obs_n = paste(study.name, row_n)) %>% 
-  ggplot(aes(y = study_obs_n, xmin = lnR - sdlnR, x = lnR, xmax = lnR + sdlnR)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
+  ggplot(aes(y = study_obs_n, xmin = lnR - sdlnR, x = lnR, xmax = lnR + sdlnR, color = wind.pollinated)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
   geom_pointrange(alpha = 0.5)  + facet_wrap(~measurement.type, scales = "free") + 
   geom_vline(xintercept = 0, lty = 2) + ggthemes::theme_few() 
 
-#
+#phenology: reproductive duration and start of reproduction
+p %>% 
+  filter(measurement.type == "reproductive duration" | measurement.type == "start of reproduction") %>% 
+  mutate(study_obs = as.numeric(as.factor(paper.index)),
+         row_n = row_number(),
+         study_obs_n = paste(study.name, row_n)) %>% 
+  ggplot(aes(y = study_obs_n, xmin = lnR - sdlnR, x = lnR, xmax = lnR + sdlnR)) +  
+  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
+  geom_pointrange(alpha = 0.5)  + facet_wrap(~measurement.type, scales = "free") + 
+  geom_vline(xintercept = 0, lty = 2) + ggthemes::theme_few() 
+
+
+
+
+
+p %>% 
+#  group_by(species) %>% 
+  summarize(n = n())
