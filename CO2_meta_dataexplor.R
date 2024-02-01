@@ -163,7 +163,7 @@ res <- rma.mv(yi, vi, mods = ~ factor(Growth.Form) + factor(N2.Fixing),
                   random = ~ 1| factor(study_n),
            data=dat)
 res
-
+exp(0.19)
 forest(res)
 
 forest(dat$yi, dat$vi,
@@ -269,7 +269,7 @@ library(metafor)
 p_subset <- p_raw %>% 
   filter(measurement.type == "amount of reproductive tissue" | measurement.type == "percent flowering") %>% 
   filter(!is.na(eCO2.SD)) %>% 
-  filter(!is.na(eCO2.n.indv.plants)) %>% 
+  #filter(!is.na(eCO2.n.indv.plants)) %>% 
   filter(!is.na(eCO2.mean)) %>% 
   filter(eCO2.mean != 0) %>%
   filter(aCO2.mean != 0) %>% 
@@ -296,7 +296,7 @@ for(i in 1:N){ #observation loop
 P[i] <- 1/sdlnR[i]
 
 lnR[i] ~ dnorm(obs[i] , P[i])
-obs[i] <- d[study[i]] + beta_growthform[growth_form[i]]
+obs[i] <- d[study[i]] + beta_growthform[growth_form[i]] + beta_nfixing[nfixing[i]]
 }
 
 #### define the priors at the study level
@@ -307,7 +307,10 @@ OR[j] <- exp(d[j])
 }
 
 #### define the priors at the observation level
-for(g in 1:3){beta_growthform[g] ~ dnorm(0, 0.0001)}
+for(b in 1:3){beta_growthform[b] ~ dnorm(0, 0.0001)}
+for(b in 1:2){beta_nfixing[b] ~ dnorm(0, 0.0001)}
+
+
 
 d_overall~ dnorm(0, 0.0001)
 d_sd ~ dgamma(0.01, 0.01)
@@ -325,7 +328,8 @@ jags <- jags.model('model.txt',
                      N = nrow(p_subset),
                      study = p_subset$study_n,
                      study_N = max(p_subset$study_n),
-                     growth_form = as.numeric(as.factor(p_subset$Growth.Form))
+                     growth_form = as.numeric(as.factor(p_subset$Growth.Form)),
+                     nfixing = as.numeric(as.factor(p_subset$N2.Fixing))
                      ),
                    n.chains = 3,
                    n.adapt = 100)  # diffuse priors
@@ -344,7 +348,7 @@ mcmc_samples_params <- coda.samples(jags, variable.names=c("d_overall", "or_over
 plot(mcmc_samples_params)
 
 
-mcmc_samples_params <- coda.samples(jags, variable.names=c("beta_growthform"),  n.iter = 10000, thin = 3) #variables to monitor #"b", "c" "b_snap"
+mcmc_samples_params <- coda.samples(jags, variable.names=c("beta_growthform", "beta_nfixing"),  n.iter = 10000, thin = 3) #variables to monitor #"b", "c" "b_snap"
 plot(mcmc_samples_params)
 
 
