@@ -46,10 +46,22 @@ exp(mean(p$lnR[!is.infinite(p$lnR)], na.rm = T))
 p %>% 
 ggplot(aes(x = lnR)) + geom_histogram() + theme_bw() + facet_wrap(~Experiment.Type)
 
-p %>% group_by(Experiment.Type) %>% 
+p %>% #group_by(Experiment.Type) %>% 
+  #filter(measurement.type == "amount of reproductive tissue") %>% 
+  filter(measurement.type == "allergenicity") %>% 
+  
   filter(!is.infinite(lnR)) %>% 
   summarize(mean_lnR = mean(lnR, na.rm = TRUE),
             mean_r = exp(mean_lnR))
+
+p %>% #group_by(Experiment.Type) %>% 
+  filter(measurement.type == "amount of reproductive tissue") %>% 
+ # filter(measurement.type == "allergenicity") %>% 
+  ggplot(aes(x = lnR)) + geom_histogram() + theme_bw() + 
+  geom_vline(xintercept = 0, lty = 2, color = "red", lwd = 1.3) +
+  geom_vline(xintercept = mean(p$lnR[!is.infinite(p$lnR) & p$measurement.type == "amount of reproductive tissue"], na.rm = T), lty = 2, color = "blue", lwd = 1.3)
+
+
 
 p %>% 
   #filter(Experiment.Type == "FACE") %>%  
@@ -93,13 +105,27 @@ p %>%
 
 #reproductive tissue production
 p %>% 
-  #filter(measurement.type == "amount of reproductive tissue") %>% 
+  filter(measurement.type == "amount of reproductive tissue") %>% 
   mutate(study_obs = as.numeric(as.factor(paper.index)),
          row_n = row_number(),
          study_obs_n = paste(study.name, row_n)) %>% 
-  ggplot(aes(y = study_obs_n, xmin = lnR - sdlnR, x = lnR, xmax = lnR + sdlnR, color = wind.pollinated)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
+  ggplot(aes(y = study_obs_n, xmin = lnR - sdlnR, x = lnR, xmax = lnR + sdlnR, color = Experiment.Type)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
   geom_pointrange(alpha = 0.5)  + facet_wrap(~measurement.type, scales = "free") + 
   geom_vline(xintercept = 0, lty = 2) + ggthemes::theme_few() 
+
+
+
+p %>% 
+  filter(measurement.type == "amount of reproductive tissue") %>% 
+  mutate(study_obs = as.numeric(as.factor(paper.index)),
+         row_n = row_number(),
+         study_obs_n = paste(study.name, row_n)) %>% 
+  ggplot(aes(x = lnR)) +  #Experiment.Type wind.pollinated Growth.Form photosynthesis.type Country
+ 
+ geom_histogram() + theme_bw() + 
+  geom_vline(xintercept = 0, lty = 2, color = "red", lwd = 1.3) +
+  geom_vline(xintercept = mean(p$lnR[!is.infinite(p$lnR)], na.rm = T), lty = 2, color = "blue", lwd = 1.3)
+
 
 #phenology: reproductive duration and start of reproduction
 p %>% 
@@ -136,12 +162,17 @@ p_area %>% group_by(study.name) %>%
 ### meta-analysis of studies that include individual plant sample sizes using metafor ##################
 
 p_subset <- p_raw %>% 
-  filter(measurement.type == "amount of reproductive tissue" | measurement.type == "percent flowering") %>% 
+ # filter(measurement.type == "amount of reproductive tissue" | measurement.type == "allergenicity" | measurement.type == "start of reproduction") %>% 
+ # filter( measurement.type == "allergenicity") %>% 
   filter(!is.na(eCO2.SD)) %>% 
   filter(!is.na(eCO2.n.indv.plants)) %>% 
   filter(!is.na(eCO2.mean)) %>% 
+  filter(!is.na(aCO2.n.indv.plants)) %>% 
+  filter(aCO2.n.indv.plants != 0) %>% 
   filter(eCO2.mean != 0) %>%
   filter(aCO2.mean != 0) %>% 
+  filter(eCO2.SD != 0) %>% 
+  filter(aCO2.SD != 0) %>% 
   mutate(lnR = round(log(eCO2.mean) - log(aCO2.mean), 3),
          lnR = case_when(measurement.type == "start of reproduction" ~ lnR * -1,  #ES should be flipped for this one since an earlier start date 
                          measurement.type != "start of reproduction" ~ lnR), #means more pollen exposure
@@ -155,16 +186,37 @@ p_subset <- p_raw %>%
          study_n = as.numeric(as.factor(study.name))
   ) 
 
-dat <- escalc(measure="ROM", m1i = eCO2.mean, m2i = aCO2.mean, sd1i =eCO2.SD, sd2i = aCO2.SD, 
+dat <- escalc(measure="ROM", m1i = eCO2.mean, m2i = aCO2.mean, sd1i = eCO2.SD, sd2i = aCO2.SD, 
               n1i = eCO2.n.indv.plants, n2i = aCO2.n.indv.plants,
               data = p_subset)
 
-res <- rma.mv(yi, vi, mods = ~ factor(Growth.Form) + factor(N2.Fixing), 
+res <- rma.mv(yi, vi, mods = ~ measurement.type - 1,#factor(Growth.Form) ,  #+ factor(N2.Fixing)
                   random = ~ 1| factor(study_n),
            data=dat)
 res
 exp(0.19)
 forest(res)
+
+# a figure for how response varies according to response type
+data.frame(row.names(res$b), res$b[1:7], res$ci.lb, res$ci.ub) %>% 
+  mutate( response_type = gsub(x = row.names.res.b., pattern = "measurement.type", replacement = "")) %>% 
+  filter(response_type != "percent flowering") %>% 
+  filter(response_type != "start of reproduction") %>% 
+  filter(response_type != "pollen size") %>% 
+  filter(response_type != "reproductive allocation") %>% 
+  ggplot(aes(y = response_type, x = res.b.1.7., xmin = res.ci.lb, xmax = res.ci.ub)) + geom_errorbarh(height = 0.2) + ggthemes::theme_few(base_size = 16) +
+  xlab("effect size (logRR)") + geom_vline(xintercept = 0, lty = 2) + ylab("response to CO2 enrichment")
+          
+      
+#with back transformation to response ratio
+data.frame(row.names(res$b), res$b[1:7], res$ci.lb, res$ci.ub) %>% 
+  mutate( response_type = gsub(x = row.names.res.b., pattern = "measurement.type", replacement = "")) %>% 
+  filter(response_type != "percent flowering") %>% 
+  filter(response_type != "start of reproduction") %>% 
+  ggplot(aes(y = response_type, x = exp(res.b.1.7.), xmin = exp(res.ci.lb), xmax = exp(res.ci.ub))) + geom_errorbarh(height = 0.2) + ggthemes::theme_few(base_size = 16) +
+  xlab("effect size (logRR)") + geom_vline(xintercept = 1, lty = 2) + ylab("response carbon dioxide enrichment")
+
+
 
 forest(dat$yi, dat$vi,
        xlim=c(-2.5,3.5),        ### adjust horizontal plot region limits
