@@ -1,6 +1,6 @@
 # Meta-analysis on the effects of increased CO2 on pollen and reproduction
 # Study authors: Dan Katz and Allison Kozak
-# Summer 2023
+# Summer 2023 - Spring 2024
 
 #Set up work environment
 library(googlesheets4)
@@ -14,13 +14,13 @@ data_url <- "https://docs.google.com/spreadsheets/d/1Xlvh1YfJ3H5yebCseq1KC_i0rE4
 p_raw <- googlesheets4::read_sheet(data_url, sheet ="data", .name_repair = "universal")
 p <- p_raw %>% 
   #filter(agricultural != "yes"|is.na(agricultural)) %>% 
- # filter(!is.na(eCO2.SD)) %>% 
+  filter(!is.na(eCO2.SD)) %>% 
   filter(!is.na(eCO2.mean)) %>% 
   mutate(lnR = round(log(eCO2.mean) - log(aCO2.mean), 3),
          lnR = case_when(measurement.type == "start of reproduction" ~ lnR * -1,  #ES should be flipped for this one since an earlier start date 
                           measurement.type != "start of reproduction" ~ lnR), #means more pollen exposure
-         vlnR = eCO2.SD^2 / (eCO2.study.n * eCO2.mean^2) +
-                aCO2.SD^2 / (aCO2.study.n * aCO2.mean^2),
+         vlnR = eCO2.SD^2 / (eCO2.n * eCO2.mean^2) +
+                aCO2.SD^2 / (aCO2.n * aCO2.mean^2),
          sdlnR = sqrt(vlnR),
          ES_ratio = exp(lnR),
          ES_sd = exp(sdlnR)
@@ -159,25 +159,24 @@ p_area %>% group_by(study.name) %>%
 
 
 
-### meta-analysis of studies that include individual plant sample sizes using metafor ##################
+### meta-analysis of studies using metafor ##################
 
 p_subset <- p_raw %>% 
  # filter(measurement.type == "amount of reproductive tissue" | measurement.type == "allergenicity" | measurement.type == "start of reproduction") %>% 
  # filter( measurement.type == "allergenicity") %>% 
   filter(!is.na(eCO2.SD)) %>% 
-  filter(!is.na(eCO2.n.indv.plants)) %>% 
   filter(!is.na(eCO2.mean)) %>% 
-  filter(!is.na(aCO2.n.indv.plants)) %>% 
-  filter(aCO2.n.indv.plants != 0) %>% 
   filter(eCO2.mean != 0) %>%
   filter(aCO2.mean != 0) %>% 
   filter(eCO2.SD != 0) %>% 
   filter(aCO2.SD != 0) %>% 
+  filter(!is.na(eCO2.n)) %>% 
+
   mutate(lnR = round(log(eCO2.mean) - log(aCO2.mean), 3),
          lnR = case_when(measurement.type == "start of reproduction" ~ lnR * -1,  #ES should be flipped for this one since an earlier start date 
                          measurement.type != "start of reproduction" ~ lnR), #means more pollen exposure
-         vlnR = eCO2.SD^2 / (eCO2.n.indv.plants * eCO2.mean^2) +
-           aCO2.SD^2 / (aCO2.n.indv.plants * aCO2.mean^2),
+         vlnR = eCO2.SD^2 / (eCO2.n * eCO2.mean^2) +
+           aCO2.SD^2 / (aCO2.n * aCO2.mean^2),
          sdlnR = sqrt(vlnR),
          ES_ratio = exp(lnR),
          ES_sd = exp(sdlnR),
@@ -187,34 +186,113 @@ p_subset <- p_raw %>%
   ) 
 
 dat <- escalc(measure="ROM", m1i = eCO2.mean, m2i = aCO2.mean, sd1i = eCO2.SD, sd2i = aCO2.SD, 
-              n1i = eCO2.n.indv.plants, n2i = aCO2.n.indv.plants,
-              data = p_subset)
+              n1i = eCO2.n, n2i = aCO2.n,
+              data = p_subset) 
+
 
 res <- rma.mv(yi, vi, mods = ~ measurement.type - 1,#factor(Growth.Form) ,  #+ factor(N2.Fixing)
                   random = ~ 1| factor(study_n),
            data=dat)
-res
-exp(0.19)
+res #exp(0.19)
 forest(res)
 
 # a figure for how response varies according to response type
 data.frame(row.names(res$b), res$b[1:7], res$ci.lb, res$ci.ub) %>% 
   mutate( response_type = gsub(x = row.names.res.b., pattern = "measurement.type", replacement = "")) %>% 
-  filter(response_type != "percent flowering") %>% 
-  filter(response_type != "start of reproduction") %>% 
-  filter(response_type != "pollen size") %>% 
-  filter(response_type != "reproductive allocation") %>% 
-  ggplot(aes(y = response_type, x = res.b.1.7., xmin = res.ci.lb, xmax = res.ci.ub)) + geom_errorbarh(height = 0.2) + ggthemes::theme_few(base_size = 16) +
+  # filter(response_type != "percent flowering") %>% 
+  # filter(response_type != "start of reproduction") %>% 
+  # filter(response_type != "pollen size") %>% 
+  # filter(response_type != "reproductive allocation") %>% 
+  ggplot(aes(y = response_type, x = res.b.1.7., xmin = res.ci.lb, xmax = res.ci.ub)) + geom_errorbarh(height = 0.2) + geom_point() +
+  ggthemes::theme_few(base_size = 16) +
   xlab("effect size (logRR)") + geom_vline(xintercept = 0, lty = 2) + ylab("response to CO2 enrichment")
           
       
 #with back transformation to response ratio
 data.frame(row.names(res$b), res$b[1:7], res$ci.lb, res$ci.ub) %>% 
   mutate( response_type = gsub(x = row.names.res.b., pattern = "measurement.type", replacement = "")) %>% 
-  filter(response_type != "percent flowering") %>% 
-  filter(response_type != "start of reproduction") %>% 
-  ggplot(aes(y = response_type, x = exp(res.b.1.7.), xmin = exp(res.ci.lb), xmax = exp(res.ci.ub))) + geom_errorbarh(height = 0.2) + ggthemes::theme_few(base_size = 16) +
-  xlab("effect size (logRR)") + geom_vline(xintercept = 1, lty = 2) + ylab("response carbon dioxide enrichment")
+  mutate(
+  res.b.1.7. = case_when(response_type == "start of reproduction" ~ res.b.1.7. * -1,  #ES should be flipped for this one since an earlier start date
+                         response_type != "start of reproduction" ~ res.b.1.7.),
+  res.ci.lb = case_when(response_type == "start of reproduction" ~ res.ci.lb * -1,  #ES should be flipped for this one since an earlier start date
+                        response_type != "start of reproduction" ~ res.ci.lb),
+  res.ci.ub = case_when(response_type == "start of reproduction" ~ res.ci.ub * -1,  #ES should be flipped for this one since an earlier start date
+                        response_type != "start of reproduction" ~ res.ci.ub)) %>%
+  ggplot(aes(y = response_type, x = exp(res.b.1.7.), xmin = exp(res.ci.lb), xmax = exp(res.ci.ub))) + geom_errorbarh(height = 0.2) + geom_point() +
+  ggthemes::theme_few(base_size = 16) +
+  xlab("effect size (response ratio)") + geom_vline(xintercept = 1, lty = 2) + ylab(expression(response~to~CO[2]~enrichment)) 
+
+
+
+
+forest(dat$yi, dat$vi,
+       xlim=c(-2.5,3.5),        ### adjust horizontal plot region limits
+       order="obs",             ### order by size of yi
+       slab=NA, annotate=FALSE, ### remove study labels and annotations
+       efac=0,                  ### remove vertical bars at end of CIs
+       pch=19,                  ### changing point symbol to filled circle
+       col="gray40",            ### change color of points/CIs
+       psize=2,                 ### increase point size
+       cex.lab=1, cex.axis=1,   ### increase size of x-axis title/labels
+       lty=c("solid","blank"))  ### remove horizontal line at top of plot
+ #addpoly(res, mlab="", cex=1)
+
+forest(res, atransf=exp, at=log(c(0.05, 0.25, 1, 4)), xlim=c(-5,6),
+       #ilab=cbind(tpos, tneg, cpos, cneg), ilab.xpos=c(-9.5,-8,-6,-4.5),
+       cex=0.75, header="Author(s) and Year", mlab="", shade=TRUE)
+funnel(res, main="Standard Error")
+
+
+
+
+### meta-analysis of studies measuring amount of reproductive tissue using metafor ##################
+
+p_subset <- p_raw %>% 
+  filter(measurement.type == "amount of reproductive tissue") %>% 
+  # filter( measurement.type == "allergenicity") %>% 
+  filter(!is.na(eCO2.SD)) %>% 
+  filter(!is.na(eCO2.mean)) %>% 
+  filter(eCO2.mean != 0) %>%
+  filter(aCO2.mean != 0) %>% 
+  filter(eCO2.SD != 0) %>% 
+  filter(aCO2.SD != 0) %>% 
+  filter(!is.na(eCO2.n)) %>% 
+  
+  mutate(lnR = round(log(eCO2.mean) - log(aCO2.mean), 3),
+         # lnR = case_when(measurement.type == "start of reproduction" ~ lnR * -1,  #ES should be flipped for this one since an earlier start date 
+         #                 measurement.type != "start of reproduction" ~ lnR), #means more pollen exposure
+         vlnR = eCO2.SD^2 / (eCO2.n * eCO2.mean^2) +
+           aCO2.SD^2 / (aCO2.n * aCO2.mean^2),
+         sdlnR = sqrt(vlnR),
+         ES_ratio = exp(lnR),
+         ES_sd = exp(sdlnR),
+         obs = 1:n(),
+         dif_co2 = eCO2 - aCO2,
+         study_n = as.numeric(as.factor(study.name))
+  ) 
+
+dat <- escalc(measure="ROM", m1i = eCO2.mean, m2i = aCO2.mean, sd1i = eCO2.SD, sd2i = aCO2.SD, 
+              n1i = eCO2.n, n2i = aCO2.n,
+              data = p_subset) 
+
+
+res <- rma.mv(yi, vi, mods = ~  - 1  + factor(Growth.Form) + factor(N2.Fixing) + factor(wind.pollinated),
+              random = ~ 1| factor(study_n),
+              data = dat)
+res #exp(0.19)
+forest(res)
+
+
+# a figure for how response varies according to plant type
+data.frame(row.names(res$b), res$b, res$ci.lb, res$ci.ub) %>% 
+  mutate( response_type = gsub(x = row.names.res.b., pattern = "measurement.type", replacement = "")) %>% 
+  mutate( response_type = gsub(x = response_type, pattern = "factor(", replacement = "", fixed = TRUE)) %>% 
+  mutate( response_type = gsub(x = response_type, pattern = "Growth.Form)", replacement = "", fixed = TRUE)) %>% 
+  mutate( response_type = gsub(x = response_type, pattern = ")yes", replacement = "", fixed = TRUE)) %>% 
+  ggplot(aes(y = response_type, x = exp(res.b), xmin = exp(res.ci.lb), xmax = exp(res.ci.ub))) + geom_errorbarh(height = 0.2) + geom_point() +
+  ggthemes::theme_few(base_size = 16) +
+  xlab("effect size (RR)") + geom_vline(xintercept = 1, lty = 2) + ylab(expression(plant~type)) 
+
 
 
 
@@ -236,12 +314,6 @@ forest(res, atransf=exp, at=log(c(0.05, 0.25, 1, 4)), xlim=c(-5,6),
 funnel(res, main="Standard Error")
 
 
-op <- par(cex=0.75, font=2)
-text(c(-9.5,-8,-6,-4.5), res$k+2, c("TB+", "TB-", "TB+", "TB-"))
-text(c(-8.75,-5.25),     res$k+3, c("Vaccinated", "Control"))
-par(op)
-
- 
 
 ### custom meta-analysis practice ###########################################################
 library(rjags)
